@@ -8,15 +8,15 @@ Count your peaks! Bucket counts and co-occurrences from as many spectra as possi
 
 ## Abstract
 
-Standard spectral similarity measures such as cosine similarity treat all peaks equally, ignoring the fact that some fragment ions (e.g. low-mass hydrocarbon cations) appear in over half of all spectra while others are highly specific. [Count your bits](https://doi.org/10.1101/2025.06.16.659994) showed that count-based molecular fingerprint variants substantially improve specificity for molecular similarity; analogous considerations apply to spectral peak matching, where frequency information is currently discarded. To enable frequency-aware alternatives, we compute corpus-level statistics from large-scale tandem mass spectrometry datasets: per-bucket spectrum counts (how many spectra contain a peak in each m/z bin) and the full pairwise co-occurrence matrix (how many spectra contain peaks in both bin *i* and bin *j*). The resulting matrices are [published on Zenodo](https://doi.org/10.5281/zenodo.18986343).
+Standard spectral similarity measures such as cosine similarity treat all peaks equally, ignoring the fact that some fragment ions (e.g. low-mass hydrocarbon cations) appear in over half of all spectra while others are highly specific. [Count your bits](https://doi.org/10.1101/2025.06.16.659994) showed that count-based molecular fingerprint variants substantially improve specificity for molecular similarity; analogous considerations apply to spectral peak matching, where frequency information is currently discarded. To enable frequency-aware alternatives, we compute corpus-level statistics from large-scale tandem mass spectrometry datasets: per-bucket spectrum counts (how many spectra contain a peak in each m/z (mass-to-charge ratio) bin) and the full pairwise co-occurrence matrix (how many spectra contain peaks in both bin *i* and bin *j*). The resulting matrices are [published on Zenodo](https://doi.org/10.5281/zenodo.18986343).
 
-We process **23.5 million spectra** from the GeMS-A10 dataset at two resolutions: **0.1 Da** (32.9M nonzero co-occurrence entries) and **0.01 Da** (753.2M entries, 1.6 GB sparse matrix). The bucket count distribution is approximately log-normal with extreme skew and a compressed upper tail. PMI normalization of the co-occurrence matrix reveals association structure consistent with known mass spectrometry chemistry: a distinct high-m/z subpopulation (800--1000 Da, likely ¹³C isotope clusters from large lipids or glycopeptides) with PMI up to +16 bits, compound class segregation between low-m/z and mid-m/z fragments (-6 to -8 bits PMI), and 14 Da homologous-series striping. The general positive bias in co-occurrence (obs/exp peaking at +2 to +4 bits) reflects the latent compound-class structure of the dataset.
+We process **23.5 million spectra** from the GeMS-A10 dataset at two resolutions: **0.1 Da** (32.9M nonzero co-occurrence entries) and **0.01 Da** (753.2M entries, 1.6 GB sparse matrix). The bucket count distribution is approximately log-normal with extreme skew and a compressed upper tail. Pointwise Mutual Information (PMI) normalization of the co-occurrence matrix reveals association structure consistent with known mass spectrometry chemistry: a distinct high-m/z subpopulation (800--1000 Da, likely ¹³C isotope clusters from large lipids or glycopeptides) with PMI up to +16 bits, compound class segregation between low-m/z and mid-m/z fragments (-6 to -8 bits PMI), and 14 Da homologous-series striping. The general positive bias in co-occurrence (obs/exp peaking at +2 to +4 bits) reflects the latent compound-class structure of the dataset.
 
-These explicit corpus-level statistics enable frequency-aware spectral similarity metrics, such as IDF-weighted cosine, PMI-based cross-peak scoring, and PPMI-derived peak embeddings, analogous to techniques from NLP and information retrieval (see [Future work](#future-work)). Prior work has shown that fragment co-occurrence carries structural information: [Spec2Vec](https://pmc.ncbi.nlm.nih.gov/articles/PMC7909622/) learns this implicitly via Word2Vec-style embeddings, [MS2LDA](https://www.pnas.org/doi/10.1073/pnas.1608041113) discovers co-occurring fragment motifs through topic modeling, and [DreaMS](https://www.nature.com/articles/s41587-025-02663-3) uses masked peak prediction on the same GeMS dataset. None of these methods produce the raw count and co-occurrence matrices directly; this project fills that gap by precomputing them at corpus scale.
+These explicit corpus-level statistics enable frequency-aware spectral similarity metrics, such as Inverse Document Frequency (IDF)-weighted cosine, PMI-based cross-peak scoring, and Positive PMI (PPMI)-derived peak embeddings, analogous to techniques from Natural Language Processing (NLP) and information retrieval (see [Future work](#future-work)). Prior work has shown that fragment co-occurrence carries structural information: [Spec2Vec](https://pmc.ncbi.nlm.nih.gov/articles/PMC7909622/) learns this implicitly via Word2Vec-style embeddings, [MS2LDA](https://www.pnas.org/doi/10.1073/pnas.1608041113) discovers co-occurring fragment motifs through topic modeling, and [DreaMS](https://www.nature.com/articles/s41587-025-02663-3) uses masked peak prediction on the same GeMS dataset. None of these methods produce the raw count and co-occurrence matrices directly; this project fills that gap by precomputing them at corpus scale.
 
 ## Dataset
 
-This tool is designed for the [GeMS](https://huggingface.co/datasets/roman-bushuiev/GeMS) (Generative Mass Spectra) dataset by Bushuiev et al. The default configuration downloads and processes the **A10 split**:
+This tool is designed for the [GeMS](https://huggingface.co/datasets/roman-bushuiev/GeMS) ([GNPS](https://gnps.ucsd.edu/) (Global Natural Products Social Molecular Networking) Experimental Mass Spectra) dataset by Bushuiev et al. The default configuration downloads and processes the **A10 split**:
 
 - **23,517,534** tandem mass spectra of small molecules
 - HDF5 format, `(N, 2, 128)` float64 arrays (m/z + intensity, zero-padded)
@@ -93,7 +93,7 @@ The tool writes two files to the output directory:
 
 ### `cooccurrence.npz`
 
-Sparse co-occurrence matrix in scipy-compatible CSR format (`scipy.sparse.load_npz`). The matrix is `num_buckets x num_buckets`, upper triangle only (i <= j). Diagonal entries (i == i) are the per-bucket counts.
+Sparse co-occurrence matrix in scipy-compatible Compressed Sparse Row (CSR) format (`scipy.sparse.load_npz`). The matrix is `num_buckets x num_buckets`, upper triangle only (i <= j). Diagonal entries (i == i) are the per-bucket counts.
 
 ```python
 import scipy.sparse as sp
@@ -174,7 +174,7 @@ Top-10 m/z buckets by spectrum count (0.1 Da bins). Each bin spans 0.1 Da; the m
 
 At 0.01 Da, these bins resolve into sharper peaks. For example, the 0.01 Da peak at m/z 95.09 is consistent with C₇H₁₁⁺ (95.086, +4.5 mDa), while the 97.05 bin splits into m/z 97.06 (consistent with C₆H₉O⁺ at 97.065) and m/z 97.10 (consistent with C₇H₁₃⁺ at 97.101), revealing that the 0.1 Da bin conflates at least two distinct ions.
 
-**These are candidate assignments only.** At 0.1 Da resolution, each bin contains multiple possible molecular formulas, and proper identification would require cross-referencing against annotated spectral libraries (e.g., GNPS, MassBank) or in-silico fragmentation tools (e.g., SIRIUS, CFM-ID). No formal database lookup was performed; the formulas shown are consistent with hydrocarbon and terpenoid fragments commonly reported in mass spectrometry literature but are not uniquely determined.
+**These are candidate assignments only.** At 0.1 Da resolution, each bin contains multiple possible molecular formulas, and proper identification would require cross-referencing against annotated spectral libraries (e.g., GNPS, MassBank) or in-silico fragmentation tools (e.g., SIRIUS, CFM-ID (Competitive Fragmentation Modeling for metabolite Identification)). No formal database lookup was performed; the formulas shown are consistent with hydrocarbon and terpenoid fragments commonly reported in mass spectrometry literature but are not uniquely determined.
 
 Notable patterns: 14 Da (CH₂) homologous-series spacing is visible in the hydrocarbon series (55, 69, 83, 97) and a parallel series (81, 95, 109, 123 -- the latter two at ranks #19 and #20 with 7.5M and 7.5M counts respectively). m/z 91.05 (#16 overall, 7.7M counts) could be C₇H₇⁺ (91.054), the well-known tropylium ion characteristic of aromatic compounds.
 
@@ -184,7 +184,7 @@ Notable patterns: 14 Da (CH₂) homologous-series spacing is visible in the hydr
 
 ![Count distribution (0.01 Da)](results/0.01da/count_distribution.png)
 
-The rank-frequency plots (left panels) show that neither a pure power law nor a simple log-normal fully captures the distribution. Power-law fits give slope ≈ -2.2 to -2.3 with R² = 0.89. The log₁₀ histograms (center panels) are roughly bell-shaped, confirming an **approximately log-normal** distribution (0.1 Da: μ₁₀ = 3.71, σ₁₀ = 1.20; 0.01 Da: μ₁₀ = 2.67, σ₁₀ = 1.16). The Q-Q plots (right panels) show good agreement with log-normal in the body, with departure at both tails: excess very-low-count buckets and upper-tail compression from the finite-N ceiling (counts bounded by 23.5M spectra).
+The rank-frequency plots (left panels) show that neither a pure power law nor a simple log-normal fully captures the distribution. Power-law fits give slope ≈ -2.2 to -2.3 with R² = 0.89. The log₁₀ histograms (center panels) are roughly bell-shaped, confirming an **approximately log-normal** distribution (0.1 Da: μ₁₀ = 3.71, σ₁₀ = 1.20; 0.01 Da: μ₁₀ = 2.67, σ₁₀ = 1.16). The Quantile-Quantile (Q-Q) plots (right panels) show good agreement with log-normal in the body, with departure at both tails: excess very-low-count buckets and upper-tail compression from the finite-N ceiling (counts bounded by 23.5M spectra).
 
 Summary statistics:
 
@@ -238,7 +238,7 @@ The pairs with the highest PMI (15--16 bits, min support ≥ 235) are all in the
 | 4 | 980.5 | 981.5 | 15.0 | 626 | 682 | 662 |
 | 5 | 827.6 | 846.6 | 15.9 | 243 | 321 | 284 |
 
-These represent a **distinct spectral subpopulation** of high-molecular-weight compounds whose fragments almost never appear in spectra of smaller molecules. The +1 Da spacing in several pairs (948/949, 967/968, 981/982) is consistent with **¹³C isotope peaks**: at 800--1000 Da, organic molecules contain ~50--70 carbon atoms, making the M+1 isotopologue peak 55--77% as intense as the monoisotopic peak. When both are co-isolated within a typical 1--2 Da precursor isolation window and co-fragmented, they produce parallel fragment series separated by ~1 Da. Alternatively, these high-m/z "fragments" may be poorly fragmented or intact precursor ions rather than true CID products, since fragments at 800--1000 Da require very large precursors. The mass range is consistent with large glycerophospholipids, triacylglycerols, or glycopeptides. This is the same population visible as the bright red block in the upper-right corner of the PMI heatmaps.
+These represent a **distinct spectral subpopulation** of high-molecular-weight compounds whose fragments almost never appear in spectra of smaller molecules. The +1 Da spacing in several pairs (948/949, 967/968, 981/982) is consistent with **¹³C isotope peaks**: at 800--1000 Da, organic molecules contain ~50--70 carbon atoms, making the M+1 isotopologue peak 55--77% as intense as the monoisotopic peak. When both are co-isolated within a typical 1--2 Da precursor isolation window and co-fragmented, they produce parallel fragment series separated by ~1 Da. Alternatively, these high-m/z "fragments" may be poorly fragmented or intact precursor ions rather than true Collision-Induced Dissociation (CID) products, since fragments at 800--1000 Da require very large precursors. The mass range is consistent with large glycerophospholipids, triacylglycerols, or glycopeptides. This is the same population visible as the bright red block in the upper-right corner of the PMI heatmaps.
 
 #### Most anti-correlated pairs (lowest PMI)
 
@@ -252,7 +252,7 @@ The strongest negative PMI pairs (-6 to -8 bits) pair **low-m/z fragments (90--1
 | 4 | 108.0 | 247.1 | -7.5 | 258 | 1.6M | 678K |
 | 5 | 97.0 | 229.1 | -7.5 | 429 | 1.6M | 1.1M |
 
-These peaks each appear in hundreds of thousands to millions of spectra, yet almost never in the same spectrum. This is best explained by **compound class segregation** in the dataset: the low-m/z fragments (90--132 Da) include small hydrocarbon cations and possibly amino acid immonium ions characteristic of peptide fragmentation, while the mid-m/z fragments (225--450 Da) may include acylium ions, lipid-class-specific fragments, and terpenoid backbone fragments. A given spectrum typically comes from either a peptide-like or a lipid-like precursor -- rarely both. This segregation may be further amplified by differences in collision energy and instrument type across the heterogeneous GNPS/MassIVE collection underlying GeMS.
+These peaks each appear in hundreds of thousands to millions of spectra, yet almost never in the same spectrum. This is best explained by **compound class segregation** in the dataset: the low-m/z fragments (90--132 Da) include small hydrocarbon cations and possibly amino acid immonium ions characteristic of peptide fragmentation, while the mid-m/z fragments (225--450 Da) may include acylium ions, lipid-class-specific fragments, and terpenoid backbone fragments. A given spectrum typically comes from either a peptide-like or a lipid-like precursor -- rarely both. This segregation may be further amplified by differences in collision energy and instrument type across the heterogeneous GNPS/[MassIVE](https://massive.ucsd.edu/) (Mass Spectrometry Interactive Virtual Environment) collection underlying GeMS.
 
 ### Raw co-occurrence heatmap
 
@@ -304,21 +304,21 @@ uv run scripts/analyze_distributions.py --results-dir results/0.1da/
 uv run scripts/analyze_distributions.py --results-dir results/0.01da/
 ```
 
-Requires Python 3.11+ (dependencies are declared inline via PEP 723 and installed automatically by `uv run`).
+Requires Python 3.11+ (dependencies are declared inline via [PEP 723](https://peps.python.org/pep-0723/) (Python Enhancement Proposal for inline script metadata) and installed automatically by `uv run`).
 
 ## Future work
 
 Derived metrics enabled by the counts and co-occurrence data:
 
-1. **IDF-weighted cosine similarity** -- Use bucket counts as document frequencies: IDF(b) = log(N / count(b)). Weight peaks by IDF before cosine similarity, downweighting ubiquitous fragments (analogous to TF-IDF in NLP).
+1. **IDF-weighted cosine similarity** -- Use bucket counts as document frequencies: IDF(b) = log(N / count(b)). Weight peaks by IDF before cosine similarity, downweighting ubiquitous fragments (analogous to Term Frequency-Inverse Document Frequency (TF-IDF) in NLP).
 
 2. **PMI-based spectral similarity** -- Use off-diagonal PMI scores from the co-occurrence matrix for cross-peak matching: when spectrum A has peak i and spectrum B has peak j, score the match by PMI(i,j) rather than requiring i == j. This captures soft associations between related but non-identical fragments. (Note: same-bucket PMI(b,b) reduces to a function of IDF, so the value here is in cross-peak scoring.)
 
-3. **Positive PMI (PPMI) embeddings** -- Truncate negative PMI to zero, apply SVD to the PPMI matrix to obtain low-dimensional peak embeddings. A spectrum can then be represented as a weighted sum of its peak embeddings (e.g., intensity- or IDF-weighted), and spectral similarity becomes cosine similarity in embedding space.
+3. **Positive PMI (PPMI) embeddings** -- Truncate negative PMI to zero, apply Singular Value Decomposition (SVD) to the PPMI matrix to obtain low-dimensional peak embeddings. A spectrum can then be represented as a weighted sum of its peak embeddings (e.g., intensity- or IDF-weighted), and spectral similarity becomes cosine similarity in embedding space.
 
 4. **Entropy-based weighting** -- For each bucket, compute the entropy of its co-occurrence distribution: H(b) = -sum P(j|b) log P(j|b), where P(j|b) is the fraction of b's co-occurrences involving bucket j. Peaks with high entropy (diffuse co-occurrence across many partners) are less discriminative; peaks with low entropy (concentrated, predictable co-occurrence) are more specific and can be upweighted.
 
-5. **Information-theoretic spectral distance** -- Use the co-occurrence matrix to define conditional distributions P(·|b) and compare spectra via KL divergence or Jensen-Shannon divergence of their peak sets' conditional profiles.
+5. **Information-theoretic spectral distance** -- Use the co-occurrence matrix to define conditional distributions P(·|b) and compare spectra via Kullback-Leibler (KL) divergence or Jensen-Shannon divergence of their peak sets' conditional profiles.
 
 6. **Learned bin widths** -- Use the count distribution to identify optimal non-uniform binning (narrower bins where peak density is high, wider where sparse).
 
