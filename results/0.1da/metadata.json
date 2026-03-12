@@ -1,0 +1,8 @@
+{
+  "min_mz": 0.0,
+  "max_mz": 2000.0,
+  "bin_width": 0.1,
+  "num_buckets": 20000,
+  "num_spectra": 23517534,
+  "num_nonzero_entries": 32899680
+}
